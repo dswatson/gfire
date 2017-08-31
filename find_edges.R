@@ -7,10 +7,12 @@ registerDoMC(20L)
 
 # Define find_edges function
 find_edges <- function(dat, 
-                       focus = NULL, 
-                      sparse = FALSE, 
-                       alpha = 0.05, 
-                    directed = FALSE, ...) {
+                       mtry = NULL,
+                      ntree = NULL,
+                      focus = NULL, 
+                     sparse = FALSE, 
+                      alpha = 0.05, 
+                   directed = FALSE) {
   
   # Prelimz
   if (!is.null(focus)) {
@@ -26,10 +28,16 @@ find_edges <- function(dat,
   } else {
     p <- ncol(dat)
   }
+  if (is.null(mtry)) {
+    mtry <- floor(p / 3L)
+  }
+  if (is.null(ntree)) {
+    ntree <- 1000L
+  }
   if (sparse) {
     EV <- floor(alpha * (p - 1L))
-    rf <- function(x, y, q, ...) {  # ntree? mtry?
-      fit <- randomForest(x, y, importance = TRUE, ...)
+    rf <- function(x, y, q) {  
+      fit <- randomForest(x, y, mtry = mtry, ntree = ntree, importance = TRUE)
       imp <- importance(fit, type = 1L, scale = TRUE) 
       coef_ids <- order(imp[, 1L], decreasing = TRUE)[seq_len(q)]
       ret <- ifelse(seq_len(ncol(x)) %in% coef_ids, TRUE, FALSE)
@@ -40,8 +48,8 @@ find_edges <- function(dat,
   
   # Define edge_wts function
   edge_wts <- function(j) {
-    out <- double(length = ncol(dat))
-    names(out) <- colnames(dat)
+    out <- double(length = p)
+    names(out) <- colnames(dat)[seq_len(p)]
     if (!is.null(focus) && j <= p) {
       x <- x[, -j]
     } else {
@@ -53,18 +61,19 @@ find_edges <- function(dat,
                     sampling.type = 'SS', papply = lapply)
       edges <- ss$selected
       if (length(edges) > 0L) {
+        x <- x[, edges]
         fit <- randomForest(x, y, importance = TRUE)
-        imp <- importance(fit, type = 1L, scale = TRUE)[names(edges), ]
+        imp <- importance(fit, type = 1L, scale = TRUE)
         out[names(edges)] <- imp
       }
     } else {
-      fit <- randomForest(x, y, importance = TRUE, ...)
+      fit <- randomForest(x, y, mtry = mtry, ntree = ntree, importance = TRUE)
       imp <- importance(fit, type = 1L, scale = TRUE)
       out[rownames(imp)] <- as.numeric(imp)
     }
     return(out) 
   }
-
+  
   # Execute in parallel
   adj_mat <- foreach(j = seq_len(p), .combine = cbind) %dopar% edge_wts(j)
   dimnames(adj_mat) <- list(colnames(dat)[seq_len(p)], colnames(dat))
@@ -76,3 +85,11 @@ find_edges <- function(dat,
   return(adj_mat)
   
 }
+
+
+
+# Error control
+# More stabsel options (cutoff, sampling.type, etc.)?
+# Better parallelization schemes?
+# Open q: what's best with undirected adj_mat? Max val, lower tri, upper?
+
