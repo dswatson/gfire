@@ -6,10 +6,11 @@ registerDoMC(20L)
 # Define edge_wts function
 edge_wts <- function(dat, 
                      candidates = NULL,
-                           mtry = round(p / 3L),
-                          ntree = 2000L,
+                           mtry = NULL,
+                          ntree = NULL,
                          lambda = 0L,
-                       directed = TRUE) {
+                       directed = TRUE,
+                           seed = NULL) {
   
   # Prelimz
   p <- ncol(dat)
@@ -28,6 +29,12 @@ edge_wts <- function(dat,
   } else {
     p_names <- colnames(dat)
   }
+  if (is.null(mtry)) {
+    mtry <- ceiling(p / 3L)
+  }
+  if (is.null(ntree)) {
+    ntree <- 2000L
+  }
   
   # Define rf_fit function
   rf_fit <- function(j) {
@@ -45,7 +52,7 @@ edge_wts <- function(dat,
                   num.trees = ntree, mtry = mtry, 
                   importance = 'permutation', write.forest = FALSE,
                   scale.permutation.importance = TRUE,
-                  num.threads = 1L, verbose = FALSE)
+                  num.threads = 1L, verbose = FALSE, seed = seed)
     # Use split.select.weights arg for prior info
     imp <- importance(fit)
     keep <- as.logical(imp > lambda)
