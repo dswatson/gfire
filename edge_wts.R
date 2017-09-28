@@ -1,59 +1,63 @@
 # Load libraries
-library(randomForest)
+library(ranger)
 library(doMC)
 registerDoMC(20L)
 
 # Define edge_wts function
 edge_wts <- function(dat, 
-                     mtry = NULL,
-                    ntree = NULL,
-                   lambda = 0L,
-                    focus = NULL, 
-                 directed = FALSE) {
+                     candidates = NULL,
+                           mtry = round(p / 3L),
+                          ntree = 2000L,
+                         lambda = 0L,
+                       directed = TRUE) {
   
   # Prelimz
-  if (!is.null(focus)) {
-    if (length(focus) != 1L) {
-      if (is.character(focus)) {
-        focus <- seq_len(p)[colnames(dat) %in% focus]
-      }
-      not_focus <- setdiff(seq_len(ncol(dat)), focus)
-      dat <- dat[, c(focus, not_focus)]
+  p <- ncol(dat)
+  if (is.null(colnames(dat))) {
+    colnames(dat) <- paste0('x', seq_len(p))
+  }
+  if (!is.null(candidates)) {
+    if (is.character(candidates)) {
+      candidates <- seq_len(p)[colnames(dat) %in% candidates]
     }
-    x <- dat[, seq_len(focus)]
+    others <- setdiff(seq_len(p), candidates)
+    dat <- dat[, c(candidates, others)]
+    x <- dat[, seq_len(candidates)]
     p <- ncol(x)
+    p_names <- colnames(x)
   } else {
-    p <- ncol(dat)
-  }
-  if (is.null(mtry)) {
-    mtry <- floor(p / 3L)
-  }
-  if (is.null(ntree)) {
-    ntree <- 2000L
+    p_names <- colnames(dat)
   }
   
   # Define rf_fit function
   rf_fit <- function(j) {
     out <- double(length = p)
-    names(out) <- colnames(dat)[seq_len(p)]
-    if (!is.null(focus) && j <= p) {
-      x <- x[, -j]
-    } else {
-      x <- dat[, -j]
+    names(out) <- p_names
+    y_name <- colnames(dat)[j]
+    if (!is.null(candidates)) {
+      if (j <= p) {
+        dat <- x
+      } else {
+        dat <- cbind(x, dat[, j])
+      }
     }
-    y <- dat[, j]
-    fit <- randomForest(x, y, mtry = mtry, ntree = ntree, importance = TRUE)
-    imp <- importance(fit, type = 1L, scale = TRUE)
+    fit <- ranger(data = dat, dependent.variable.name = y_name,
+                  num.trees = ntree, mtry = mtry, 
+                  importance = 'permutation', write.forest = FALSE,
+                  scale.permutation.importance = TRUE,
+                  num.threads = 1L, verbose = FALSE)
+    # Use split.select.weights arg for prior info
+    imp <- importance(fit)
     keep <- as.logical(imp > lambda)
-    out[keep] <- imp[keep, ]
+    out[keep] <- imp[keep]
     return(out) 
   }
   
   # Execute in parallel
   adj_mat <- foreach(j = seq_len(p), .combine = cbind) %dopar% rf_fit(j)
-  dimnames(adj_mat) <- list(colnames(dat)[seq_len(p)], colnames(dat))
-  if (is.null(focus) && !directed) {
-    adj_mat <- pmax(adj_mat, t(adj_mat))   # Or average?
+  dimnames(adj_mat) <- list(p_names, colnames(dat))
+  if (!directed) {
+    adj_mat <- (adj_mat + t(adj_mat)) / 2L
   }
   
   # Export
