@@ -1,5 +1,5 @@
-# Define importance function
-vimp <- function(grf) {
+# Define variable importance function
+v_imp <- function(grf) {
   require(grf)
   split.freq <- split_frequencies(grf, 4L)
   split.freq <- split.freq / pmax(1L, rowSums(split.freq))
@@ -54,7 +54,7 @@ edge_wts <- function(dat,
     y <- dat[, j]
     fit <- regression_forest(x, y, mtry = mtry, num.trees = ntree, 
                              honesty = FALSE, num.threads = 1L, seed = seed) 
-    imp <- vimp(fit)
+    imp <- v_imp(fit)
     out[colnames(x)] <- imp 
     return(out) 
   }
