@@ -53,9 +53,8 @@ edge_wts <- function(dat,
     }
     y <- dat[, j]
     fit <- regression_forest(x, y, mtry = mtry, num.trees = ntree, 
-                             honesty = FALSE, num.threads = 1L, seed = seed) 
-    imp <- v_imp(fit)
-    out[colnames(x)] <- imp 
+                             honesty = FALSE, num.threads = 1L, seed = seed)
+    out[colnames(x)] <- v_imp(fit) 
     return(out) 
   }
   
