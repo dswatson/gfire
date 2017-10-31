@@ -15,7 +15,8 @@ edge_wts <- function(dat,
                      mtry = NULL,
                      ntree = NULL,
                      directed = TRUE,
-                     seed = NULL) {
+                     seed = NULL,
+                     parallel = TRUE) {
   
   # Prelimz
   require(grf)
@@ -29,12 +30,9 @@ edge_wts <- function(dat,
     }
     others <- setdiff(seq_len(p), candidates)
     dat <- dat[, c(candidates, others)]
-    x <- dat[, seq_len(candidates)]
+    x <- dat[, candidates]
     p <- ncol(x)
-    p_names <- colnames(x)
-  } else {
-    p_names <- colnames(dat)
-  }
+  } 
   if (is.null(mtry)) {
     mtry <- ceiling(2L * p / 3L)
   }
@@ -45,10 +43,10 @@ edge_wts <- function(dat,
   # Define rf_fit function
   rf_fit <- function(j) {
     out <- double(length = p)
-    names(out) <- p_names
+    names(out) <- colnames(dat)[seq_len(p)]
     if (!is.null(candidates) && j <= p) {
       x <- x[, -j]
-    } else {
+    } else if (is.null(candidates)) {
       x <- dat[, -j]
     }
     y <- dat[, j]
@@ -59,8 +57,12 @@ edge_wts <- function(dat,
   }
   
   # Execute in parallel
-  adj_mat <- foreach(j = seq_len(p), .combine = cbind) %dopar% rf_fit(j)
-  dimnames(adj_mat) <- list(p_names, colnames(dat))
+  if (parallel) {
+    adj_mat <- foreach(j = seq_len(ncol(dat)), .combine = cbind) %dopar% rf_fit(j)
+  } else {
+    adj_mat <- sapply(seq_len(ncol(dat)), rf_fit)
+  }
+  dimnames(adj_mat) <- list(colnames(dat)[seq_len(p)], colnames(dat))
   if (!directed) {
     adj_mat <- (adj_mat + t(adj_mat)) / 2L
   }
