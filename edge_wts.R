@@ -64,7 +64,7 @@ edge_wts <- function(dat,
   }
   dimnames(adj_mat) <- list(colnames(dat)[seq_len(p)], colnames(dat))
   if (!directed) {
-    adj_mat <- (adj_mat + t(adj_mat)) / 2L
+    adj_mat <- pmax(adj_mat, t(adj_mat))
   }
   
   # Export
